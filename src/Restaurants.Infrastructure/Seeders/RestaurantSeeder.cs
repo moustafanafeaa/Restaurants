@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Restaurants.Domain.Constants;
 using Restaurants.Domain.Entities;
 using Restaurants.Infrastructure.Persistance;
@@ -9,6 +10,11 @@ internal class RestaurantSeeder(RestaurantDbContext dbContext) : IRestaurantSeed
 {
     public async Task Seed()
     {
+        if (dbContext.Database.GetPendingMigrations().Any())
+        {
+            await dbContext.Database.MigrateAsync();
+        }
+
         if (await dbContext.Database.CanConnectAsync())
         {
             if (!dbContext.Restaurants.Any())
@@ -45,9 +51,14 @@ internal class RestaurantSeeder(RestaurantDbContext dbContext) : IRestaurantSeed
     }
     private IEnumerable<Restaurant> GetRestaurants()
     {
+        var owner = new User
+        {
+            Email = "seed-user@test.com"
+        };
         List<Restaurant> restaurants = [
             new()
             {
+                Owner = owner,
                 Name = "El Mohamady",
                 Category = "Egyptian Cuisine",
                 Description = "El Mohamady offers traditional Egyptian dishes with a modern touch. A long-standing favorite for Mansoura locals, known for hearty meals and excellent service.",
@@ -83,6 +94,7 @@ internal class RestaurantSeeder(RestaurantDbContext dbContext) : IRestaurantSeed
             },
             new()
             {
+                Owner = owner,
                 Name = "Bremer",
                 Category = "International Cuisine",
                 Description = "Bremer offers a variety of international dishes including Italian, Indian, and Chinese cuisines along with local favorites. Known for its innovative meals and cozy ambiance.",
@@ -118,6 +130,7 @@ internal class RestaurantSeeder(RestaurantDbContext dbContext) : IRestaurantSeed
             },
             new()
             {
+                Owner = owner,
                 Name = "Chicken Kickers",
                 Category = "Fast Food",
                 Description = "Chicken Kickers is the ultimate destination for crispy, juicy chicken meals and fiery wings. Known for its vibrant ambiance and bold flavors, it's a favorite for chicken lovers.",
@@ -158,6 +171,6 @@ internal class RestaurantSeeder(RestaurantDbContext dbContext) : IRestaurantSeed
                 }
             }
             ];
-        return restaurants;
+        return restaurants; 
     }
 }

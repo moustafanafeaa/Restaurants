@@ -8,23 +8,28 @@ using Restaurants.API.MiddleWares;
 using Restaurants.Domain.Entities;
 using Microsoft.OpenApi.Models;
 
-var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c=>
+try
 {
-    c.AddSecurityDefinition("bearerAuth", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-    {
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = "Bearer"
-    });
 
-    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Add services to the container.
+
+    builder.Services.AddControllers();
+    // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
     {
+        c.AddSecurityDefinition("bearerAuth", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+        {
+            Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+            Scheme = "Bearer"
+        });
+
+        c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+        {
         {
             new OpenApiSecurityScheme
             {
@@ -32,58 +37,75 @@ builder.Services.AddSwaggerGen(c=>
             },
             []
         }
+        });
+
+        c.MapType<DateOnly>(() => new OpenApiSchema
+        {
+            Type = "string",
+            Format = "date"
+        });
     });
 
-    c.MapType<DateOnly>(() => new OpenApiSchema
+    builder.Services.AddEndpointsApiExplorer();
+
+    builder.Services.AddScoped<ErrorHandlingMiddle>();
+    builder.Services.AddScoped<TimeLoggingMiddle>();
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
+
+    builder.Host.UseSerilog((context, configuration) =>
+        configuration.ReadFrom.Configuration(context.Configuration)
+    );
+
+
+
+    var app = builder.Build();
+
+
+    using (var scope = app.Services.CreateScope())
     {
-        Type = "string",
-        Format = "date"
-    });
-});
-
-builder.Services.AddEndpointsApiExplorer();
-
-builder.Services.AddScoped<ErrorHandlingMiddle>();
-builder.Services.AddScoped<TimeLoggingMiddle>();
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
-
-builder.Host.UseSerilog((context, configuration) =>
-    configuration.ReadFrom.Configuration(context.Configuration)
-);
-
-
-
-var app = builder.Build();
-
-
-using(var scope = app.Services.CreateScope())
-{
-    var seeder = scope.ServiceProvider.GetRequiredService<IRestaurantSeeder>();
-    await seeder.Seed();
-}
-// Configure the HTTP request pipeline.  
-if (app.Environment.IsDevelopment())
-{
+        var seeder = scope.ServiceProvider.GetRequiredService<IRestaurantSeeder>();
+        await seeder.Seed();
+    }
+    // Configure the HTTP request pipeline.  
+    //if (app.Environment.IsDevelopment())
+    //{
     app.UseSwagger();
     app.UseSwaggerUI();
+    //}
+    //else
+    //{
+    //    app.UseSwagger();
+    //    app.UseSwaggerUI(c =>
+    //    {
+    //        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Your API V1");
+    //        c.RoutePrefix = string.Empty; // Serve Swagger UI at the root URL
+    //    });
+    //}
+
+    app.UseMiddleware<ErrorHandlingMiddle>();
+    app.UseMiddleware<TimeLoggingMiddle>();
+
+    app.UseSerilogRequestLogging();
+    app.UseHttpsRedirection();
+
+    app.MapGroup("api/identity/")
+        .WithTags("Identity")
+        .MapIdentityApi<User>();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    app.Run();
 }
-
-app.UseMiddleware<ErrorHandlingMiddle>();
-app.UseMiddleware<TimeLoggingMiddle>();
-
-app.UseSerilogRequestLogging();
-app.UseHttpsRedirection();
-
-app.MapGroup("api/identity/")
-    .WithTags("Identity")
-    .MapIdentityApi<User>();
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();
-
+catch(Exception ex)
+{
+    Log.Fatal(ex, "Application startup faild");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 public partial class Program { }
